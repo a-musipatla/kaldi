@@ -31,6 +31,7 @@ class CovarianceStats {
  public:
   CovarianceStats(int32 dim): tot_covar_(dim),
                               between_covar_(dim),
+                              between_covar_weighted_(dim),
                               num_spk_(0),
                               num_utt_(0) { }
 
@@ -75,6 +76,7 @@ class CovarianceStats {
   KALDI_DISALLOW_COPY_AND_ASSIGN(CovarianceStats);
   SpMatrix<double> tot_covar_;
   SpMatrix<double> between_covar_;
+  SpMatrix<double> between_covar_weighted_;
   int32 num_spk_;
   int32 num_utt_;
 };
