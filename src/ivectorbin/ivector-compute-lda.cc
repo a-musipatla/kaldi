@@ -109,6 +109,7 @@ void ComputeLdaTransform(
     const std::map<std::string, std::vector<std::string> > &spk2utt,
     BaseFloat total_covariance_factor,
     BaseFloat covariance_floor,
+    int32 lda_variation,
     MatrixBase<BaseFloat> *lda_out) {
   KALDI_ASSERT(!utt2ivector.empty());
   int32 lda_dim = lda_out->NumRows(), dim = lda_out->NumCols();
@@ -228,6 +229,9 @@ int main(int argc, char *argv[]) {
               covariance_floor = 1.0e-06;
     bool binary = true;
 
+    // Set default behavior to non-weighted, standard LDA
+    int32 lda_variation = 0;
+
     po.Register("dim", &lda_dim, "Dimension we keep with the LDA transform");
     po.Register("total-covariance-factor", &total_covariance_factor,
                 "If this is 0.0 we normalize to make the within-class covariance "
@@ -237,6 +241,17 @@ int main(int argc, char *argv[]) {
                 "of the interpolated covariance matrix to the product of its "
                 "largest eigenvalue and this number.");
     po.Register("binary", &binary, "Write output in binary mode");
+    po.Register("lda-variation", &lda_variation, 
+                "Choose LDA type: \n"
+                "   '0': LDA - no weighting, standard LDA \n"
+                "   '1': WLDA - use Euclidean distance weighting function \n"
+                "   '2': WLDA - use Mahalanobis distance weighting function \n");
+
+    // check validity of lda variant chosen  
+    if (lda_variation > 2) {
+      lda_variation = 0;
+      KALDI_WARN << "Invalid LDA variant chosen, using standard LDA.";
+    }
 
     po.Read(argc, argv);
 
@@ -305,6 +320,7 @@ int main(int argc, char *argv[]) {
                         spk2utt,
                         total_covariance_factor,
                         covariance_floor,
+                        lda_variation,
                         &linear_part);
     Vector<BaseFloat> offset(lda_dim);
     offset.AddMatVec(-1.0, linear_part, kNoTrans, mean, 0.0);
