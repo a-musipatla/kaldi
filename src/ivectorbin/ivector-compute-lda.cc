@@ -251,6 +251,11 @@ int main(int argc, char *argv[]) {
     if (lda_variation > 2) {
       lda_variation = 0;
       KALDI_WARN << "Invalid LDA variant chosen, using standard LDA.";
+    } else { // force within-class covariance if weighted LDA is chosen
+      if (total_covariance_factor != 0) {
+        KALDI_WARN << "total-covariance-factor forced to 0.0 for weighted LDA.";
+        total_covariance_factor = 0;
+      }
     }
 
     po.Read(argc, argv);
