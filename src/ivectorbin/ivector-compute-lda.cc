@@ -136,6 +136,62 @@ void ComputeLdaTransform(
     stats.AccStats(utts_of_this_spk);
   }
 
+  // If WLDA was selected, compute between_covar_weighted
+  //    this computation must take place after the calculation for standard LDA
+  //    as certain weight functions (ex. Mahalanobis) require the within class 
+  //    covariance to be calculated already.
+  //
+  // WLDA S_b defined as:
+  //    S_b = 1/N SUM_i=1^S-1 SUM_j=i+1^S w(d_ij) n_i n_j (w_i − w_j)(w_i − w_j)^T
+  // where:
+  //    S:        total number of speakers
+  //    w(d_ij):  weight calculated by chosen method
+  //    n_i/n_j:  number of utterances of speaker i/j
+  //    w_i/w_j:  mean ivector of speaker i/j
+  if (lda_variation > 0) {
+    
+    // set up outer iterator over the speaker list (for speaker i)
+    std::map<std::string, std::vector<std::string> >::const_iterator outer_iter;
+    for (outer_iter = spk2utt.begin(); outer_iter != spk2utt.end(); ++outer_iter) {
+      
+      // grab utterances for speaker i
+      const std::vector<std::string> &uttlist_i = outer_iter->second;
+      KALDI_ASSERT(!uttlist_i.empty());
+      int32 n_i = uttlist_i.size(); // number of utterances (for speaker i).
+      // utts_of_spk_i contains utterances of speaker i
+      Matrix<double> utts_of_spk_i(n_i, dim);
+      for (int32 n = 0; n < n_i; n++) {
+        std::string utt = uttlist_i[n];
+        KALDI_ASSERT(utt2ivector.count(utt) != 0);
+        utts_of_spk_i.Row(n).CopyFromVec(
+            *(utt2ivector.find(utt)->second));
+      }
+
+      // set up inner iterator over the speaker list (for speaker j)
+      std::map<std::string, std::vector<std::string> >::const_iterator inner_iter =  outer_iter;
+      ++inner_iter;
+      for (; inner_iter != spk2utt.end(); ++inner_iter) {
+
+        // grab utterances for speaker j
+        const std::vector<std::string> &uttlist_j = inner_iter->second;
+        KALDI_ASSERT(!uttlist_j.empty());
+        int32 n_j = uttlist_j.size(); // number of utterances (for speaker j).
+        // utts_of_spk_j contains utterances of speaker j
+        Matrix<double> utts_of_spk_j(n_j, dim);
+        for (int32 n = 0; n < n_j; n++) {
+          std::string utt = uttlist_j[n];
+          KALDI_ASSERT(utt2ivector.count(utt) != 0);
+          utts_of_spk_j.Row(n).CopyFromVec(
+              *(utt2ivector.find(utt)->second));
+        }
+
+        // Call calculation for between_covar_weighted here
+      }
+
+      stats.AccStats(utts_of_this_spk);
+    }
+  }
+
   KALDI_LOG << "Stats have " << stats.Info();
   KALDI_ASSERT(!stats.Empty());
   KALDI_ASSERT(!stats.SingularTotCovar() &&
