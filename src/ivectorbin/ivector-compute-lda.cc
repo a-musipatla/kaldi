@@ -63,7 +63,12 @@ class CovarianceStats {
     num_spk_ += 1;
   }
   // Update between_covar_weighted_ 
-  void AccWeightedStats(const Matrix<double> &utts_of_spk_i, int32 n_i, const Matrix<double> &utts_of_spk_j, int32 n_j, int32 lda_var) {
+  void AccWeightedStats(const Matrix<double> &utts_of_spk_i, 
+                        int32 n_i, 
+                        const Matrix<double> &utts_of_spk_j, 
+                        int32 n_j, 
+                        int32 lda_var, 
+                        int32 wlda_n) {
     // calculate average ivector for speaker i
     Vector<double> spk_i_average(Dim());
     spk_i_average.AddRowSumMat(1.0 / n_i, utts_of_spk_i);
@@ -77,9 +82,9 @@ class CovarianceStats {
     // calculate the w(d_ij)
     double w = 1;
     if (lda_var == 1) {
-      euclidean_distance_weight(&w, spk_diff, 4);
+      euclidean_distance_weight(&w, spk_diff, wlda_n);
     } else if (lda_var == 2){
-      mahalanobis_distance_weight(&w, spk_diff, 6);
+      mahalanobis_distance_weight(&w, spk_diff, wlda_n);
     }
     // calculate w(d_ij) n_i n_j
     double weight = w * n_i * n_j;
@@ -111,7 +116,9 @@ class CovarianceStats {
   int32 num_spk_;
   int32 num_utt_;
 
-  void euclidean_distance_weight(double *w, Vector<double> spk_diff, int32 n) {
+  void euclidean_distance_weight(double *w, 
+                                 Vector<double> spk_diff, 
+                                 int32 n) {
     // Euclidean distance weighting is defined as:
     //    w(d_ij) = ((w_i − w_j)^T (w_i − w_j))^−n
     // where
@@ -122,7 +129,9 @@ class CovarianceStats {
     // take dot product to power of -n
     w = pow(w,-n);
   }
-  void mahalanobis_distance_weight(double *w, Vector<double> spk_diff, int32 n) {
+  void mahalanobis_distance_weight(double *w, 
+                                   Vector<double> spk_diff, 
+                                   int32 n) {
     // Mahalanobis distance weighting is defined as:
     //    w(d_ij) = ((w_i − wIj)^T (S_w)^-1 (w_i − w_j))^−n
     // where
@@ -169,6 +178,7 @@ void ComputeLdaTransform(
     BaseFloat total_covariance_factor,
     BaseFloat covariance_floor,
     int32 lda_variation,
+    int32 wlda_n,
     MatrixBase<BaseFloat> *lda_out) {
   KALDI_ASSERT(!utt2ivector.empty());
   int32 lda_dim = lda_out->NumRows(), dim = lda_out->NumCols();
@@ -243,7 +253,7 @@ void ComputeLdaTransform(
         }
 
         // Call calculation for between_covar_weighted here
-        stats.AccWeightedStats(utts_of_spk_i, n_i, utts_of_spk_j, n_j, lda_variation);
+        stats.AccWeightedStats(utts_of_spk_i, n_i, utts_of_spk_j, n_j, lda_variation, wlda_n);
       }
     }
   }
@@ -351,6 +361,9 @@ int main(int argc, char *argv[]) {
     // Set default behavior to non-weighted, standard LDA
     int32 lda_variation = 0;
 
+    // for weighted LDA
+    int32 wlda_n = 4;
+
     po.Register("dim", &lda_dim, "Dimension we keep with the LDA transform");
     po.Register("total-covariance-factor", &total_covariance_factor,
                 "If this is 0.0 we normalize to make the within-class covariance "
@@ -365,6 +378,7 @@ int main(int argc, char *argv[]) {
                 "   '0': LDA - no weighting, standard LDA \n"
                 "   '1': WLDA - use Euclidean distance weighting function \n"
                 "   '2': WLDA - use Mahalanobis distance weighting function \n");
+    po.Register("wlda-n", &wlda_n, "Choose n parameter for selected weighting function");
 
     // check validity of lda variant chosen  
     if (lda_variation > 2) {
@@ -374,6 +388,9 @@ int main(int argc, char *argv[]) {
       if (total_covariance_factor != 0) {
         KALDI_WARN << "total-covariance-factor forced to 0.0 for weighted LDA.";
         total_covariance_factor = 0;
+      }
+      if (wlda_n == 0) {
+        wlda_n = 4;
       }
     }
 
@@ -445,6 +462,7 @@ int main(int argc, char *argv[]) {
                         total_covariance_factor,
                         covariance_floor,
                         lda_variation,
+                        wlda_n,
                         &linear_part);
     Vector<BaseFloat> offset(lda_dim);
     offset.AddMatVec(-1.0, linear_part, kNoTrans, mean, 0.0);
