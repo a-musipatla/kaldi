@@ -21,6 +21,7 @@ vaddir=`pwd`/mfcc
 lda_var=0
 wlda_n=4
 lda_dim=200
+lda_transform_file=$lda_dim/$lda_var/$wlda_n/transform.mat
 
 
 # The trials file is downloaded by local/make_voxceleb1_v2.pl.
@@ -190,12 +191,12 @@ if [ $stage -le 10 ]; then
   $train_cmd $nnet_dir/xvectors_train/log/lda.log \
     ivector-compute-lda --total-covariance-factor=0.0 --dim=$lda_dim --lda-variation=$lda_var --wlda-n=$wlda_n \
     "ark:ivector-subtract-global-mean scp:$nnet_dir/xvectors_train/xvector.scp ark:- |" \
-    ark:data/train/utt2spk $nnet_dir/xvectors_train/transform.mat || exit 1;
+    ark:data/train/utt2spk $nnet_dir/xvectors_train/$lda_transform_file || exit 1;
 
   # Train the PLDA model.
   $train_cmd $nnet_dir/xvectors_train/log/plda.log \
     ivector-compute-plda ark:data/train/spk2utt \
-    "ark:ivector-subtract-global-mean scp:$nnet_dir/xvectors_train/xvector.scp ark:- | transform-vec $nnet_dir/xvectors_train/transform.mat ark:- ark:- | ivector-normalize-length ark:-  ark:- |" \
+    "ark:ivector-subtract-global-mean scp:$nnet_dir/xvectors_train/xvector.scp ark:- | transform-vec $nnet_dir/xvectors_train/$lda_transform_file ark:- ark:- | ivector-normalize-length ark:-  ark:- |" \
     $nnet_dir/xvectors_train/plda || exit 1;
 fi
 
@@ -203,8 +204,8 @@ if [ $stage -le 11 ]; then
   $train_cmd exp/scores/log/voxceleb1_test_scoring.log \
     ivector-plda-scoring --normalize-length=true \
     "ivector-copy-plda --smoothing=0.0 $nnet_dir/xvectors_train/plda - |" \
-    "ark:ivector-subtract-global-mean $nnet_dir/xvectors_train/mean.vec scp:$nnet_dir/xvectors_voxceleb1_test/xvector.scp ark:- | transform-vec $nnet_dir/xvectors_train/transform.mat ark:- ark:- | ivector-normalize-length ark:- ark:- |" \
-    "ark:ivector-subtract-global-mean $nnet_dir/xvectors_train/mean.vec scp:$nnet_dir/xvectors_voxceleb1_test/xvector.scp ark:- | transform-vec $nnet_dir/xvectors_train/transform.mat ark:- ark:- | ivector-normalize-length ark:- ark:- |" \
+    "ark:ivector-subtract-global-mean $nnet_dir/xvectors_train/mean.vec scp:$nnet_dir/xvectors_voxceleb1_test/xvector.scp ark:- | transform-vec $nnet_dir/xvectors_train/$lda_transform_file ark:- ark:- | ivector-normalize-length ark:- ark:- |" \
+    "ark:ivector-subtract-global-mean $nnet_dir/xvectors_train/mean.vec scp:$nnet_dir/xvectors_voxceleb1_test/xvector.scp ark:- | transform-vec $nnet_dir/xvectors_train/$lda_transform_file ark:- ark:- | ivector-normalize-length ark:- ark:- |" \
     "cat '$voxceleb1_trials' | cut -d\  --fields=1,2 |" exp/scores_voxceleb1_test || exit 1;
 fi
 
