@@ -69,6 +69,8 @@ class CovarianceStats {
                         int32 n_j, 
                         int32 lda_var, 
                         int32 wlda_n) {
+    KALDI_LOG << "\t\t\tRunning AccWeightedStats";
+
     // calculate average ivector for speaker i
     Vector<double> spk_i_average(Dim());
     spk_i_average.AddRowSumMat(1.0 / n_i, utts_of_spk_i);
@@ -125,6 +127,7 @@ class CovarianceStats {
     //    n:   can be selected as anything
 
     // dot product of (w_1 - w_j)
+    KALDI_LOG << "\t\t\tRunning Euclidean Distance Weight";
     w = VecVec(spk_diff, spk_diff);
     // take dot product to power of -n
     return pow(w,-n);
@@ -136,6 +139,7 @@ class CovarianceStats {
     //    w(d_ij) = ((w_i − wIj)^T (S_w)^-1 (w_i − w_j))^−n
     // where
     //    n:   can be selected as anything
+    KALDI_LOG << "\t\t\tRunning Mahalanobis Distance Weight";
     SpMatrix<double> within_covar;
     GetWithinCovar(&within_covar);
     within_covar.Invert();
@@ -217,11 +221,14 @@ void ComputeLdaTransform(
   //    n_i/n_j:  number of utterances of speaker i/j
   //    w_i/w_j:  mean ivector of speaker i/j
   if (lda_variation > 0) {
+
+    KALDI_LOG << "Running WLDA variation: " << lda_variation;
     
     // set up outer iterator over the speaker list (for speaker i)
     std::map<std::string, std::vector<std::string> >::const_iterator outer_iter;
     for (outer_iter = spk2utt.begin(); outer_iter != std::prev(spk2utt.end()); ++outer_iter) {
-      
+      KALDI_LOG << "Calculating between scatter: " << outer_iter->first();
+
       // grab utterances for speaker i
       const std::vector<std::string> &uttlist_i = outer_iter->second;
       KALDI_ASSERT(!uttlist_i.empty());
@@ -239,7 +246,8 @@ void ComputeLdaTransform(
       std::map<std::string, std::vector<std::string> >::const_iterator inner_iter =  outer_iter;
       ++inner_iter;
       for (; inner_iter != spk2utt.end(); ++inner_iter) {
-
+        KALDI_LOG << "\t\t\t\t" << inner_iter->first();
+        
         // grab utterances for speaker j
         const std::vector<std::string> &uttlist_j = inner_iter->second;
         KALDI_ASSERT(!uttlist_j.empty());
