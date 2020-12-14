@@ -56,6 +56,25 @@ class CovarianceStats {
     num_utt_ += num_utts;
     num_spk_ += 1;
   }
+  // Update between_covar_weighted_ 
+  void AccWeightedStats(const Matrix<double> &utts_of_spk_i, int32 n_i, const Matrix<double> &utts_of_spk_j, int32 n_j, int32 lda_var) {
+    // calculate average ivector for speaker i
+    Vector<double> spk_i_average(Dim());
+    spk_i_average.AddRowSumMat(1.0 / n_i, utts_of_spk_i);
+    // calculate average ivector for speaker j
+    Vector<double> spk_j_average(Dim());
+    spk_j_average.AddRowSumMat(1.0 / n_j, utts_of_spk_j);
+    // calculate w_i - w_j
+    Vector<double> spk_diff(Dim());
+    spk_diff.AddVec(1.0, spk_i_average);
+    spk_diff.AddVec(-1.0, spk_j_average);
+    // calculate the weight
+    double w = 1;
+    double weight = w * n_i * n_j / num_utt_;
+    
+    // calculate 1/N w(d_ij) n_i n_j (w_i - w_j)(w_i - w_j)^T and add to covar
+    between_covar_weighted_.AddVec2(weight, spk_diff);
+  }
   /// Will return Empty() if the within-class covariance matrix would be zero.
   bool SingularTotCovar() { return (num_utt_ < Dim()); }
   bool Empty() { return (num_utt_ - num_spk_ == 0); }
@@ -186,9 +205,8 @@ void ComputeLdaTransform(
         }
 
         // Call calculation for between_covar_weighted here
+        stats.AccWeightedStats(utts_of_spk_i, n_i, utts_of_spk_j, n_j, lda_variation);
       }
-
-      stats.AccStats(utts_of_this_spk);
     }
   }
 
