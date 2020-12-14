@@ -47,6 +47,12 @@ class CovarianceStats {
     within_covar->AddSp(-1.0, between_covar_);
     within_covar->Scale(1.0 / num_utt_);
   }
+  void GetBetweenCovarWeighted(SpMatrix<double> *between_covar_weighted) {
+    KALDI_ASSERT(num_utt_ - num_spk_ > 0);
+    *between_covar_weighted = between_covar_weighted_;
+    // scale by 1/N
+    between_covar_weighted->Scale(1.0 / num_utt_);
+  }
   void AccStats(const Matrix<double> &utts_of_this_spk) {
     int32 num_utts = utts_of_this_spk.NumRows();
     tot_covar_.AddMat2(1.0, utts_of_this_spk, kTrans, 1.0);
@@ -75,10 +81,10 @@ class CovarianceStats {
     } else if (lda_var == 2){
       mahalanobis_distance_weight(&w, spk_diff, 6);
     }
-    // calculate 1/N w(d_ij) n_i n_j
-    double weight = w * n_i * n_j / num_utt_;
+    // calculate w(d_ij) n_i n_j
+    double weight = w * n_i * n_j;
     
-    // calculate 1/N w(d_ij) n_i n_j (w_i - w_j)(w_i - w_j)^T and add to covar
+    // calculate w(d_ij) n_i n_j (w_i - w_j)(w_i - w_j)^T and add to covar
     between_covar_weighted_.AddVec2(weight, spk_diff);
   }
   /// Will return Empty() if the within-class covariance matrix would be zero.
@@ -262,8 +268,13 @@ void ComputeLdaTransform(
   ComputeNormalizingTransform(mat_to_normalize,
     static_cast<double>(covariance_floor), &T);
 
-  SpMatrix<double> between_covar(total_covar);
-  between_covar.AddSp(-1.0, within_covar);
+  if (lda_variation == 0) {
+    SpMatrix<double> between_covar(total_covar);
+    between_covar.AddSp(-1.0, within_covar);
+  } else {
+    SpMatrix<double> between_covar;
+    stats.GetBetweenCovarWeighted(&between_covar);
+  }
 
   SpMatrix<double> between_covar_proj(dim);
   between_covar_proj.AddMat2Sp(1.0, T, kNoTrans, between_covar, 0.0);
