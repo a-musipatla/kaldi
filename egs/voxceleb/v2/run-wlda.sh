@@ -29,7 +29,7 @@ voxceleb2_root=/export/corpora/VoxCeleb2
 nnet_dir=exp/xvector_nnet_1a
 musan_root=/export/corpora/JHU/musan
 
-stage=0
+stage=10
 
 if [ $stage -le 0 ]; then
   local/make_voxceleb2.pl $voxceleb2_root dev data/voxceleb2_train
