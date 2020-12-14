@@ -82,9 +82,9 @@ class CovarianceStats {
     // calculate the w(d_ij)
     double w = 1;
     if (lda_var == 1) {
-      euclidean_distance_weight(&w, spk_diff, wlda_n);
+      euclidean_distance_weight(w, spk_diff, wlda_n);
     } else if (lda_var == 2){
-      mahalanobis_distance_weight(&w, spk_diff, wlda_n);
+      mahalanobis_distance_weight(w, spk_diff, wlda_n);
     }
     // calculate w(d_ij) n_i n_j
     double weight = w * n_i * n_j;
@@ -116,7 +116,7 @@ class CovarianceStats {
   int32 num_spk_;
   int32 num_utt_;
 
-  void euclidean_distance_weight(double *w, 
+  double euclidean_distance_weight(double w, 
                                  Vector<double> spk_diff, 
                                  int32 n) {
     // Euclidean distance weighting is defined as:
@@ -127,9 +127,9 @@ class CovarianceStats {
     // dot product of (w_1 - w_j)
     w = VecVec(spk_diff, spk_diff);
     // take dot product to power of -n
-    w = pow(w,-n);
+    return pow(w,-n);
   }
-  void mahalanobis_distance_weight(double *w, 
+  double mahalanobis_distance_weight(double w, 
                                    Vector<double> spk_diff, 
                                    int32 n) {
     // Mahalanobis distance weighting is defined as:
@@ -140,9 +140,9 @@ class CovarianceStats {
     GetWithinCovar(&within_covar);
     within_covar.Invert();
     Vector<double> spk_diff_times_covar(spk_diff);
-    spk_diff_times_covar.AddMatVec(1.0, within_covar, kTrans, spk_diff, 0.0);
+    spk_diff_times_covar.AddMatVec(1.0, &within_covar, kTrans, &spk_diff, 0.0);
     w = VecVec(spk_diff_times_covar, spk_diff);
-    w = pow(w,-n);
+    return pow(w,-n);
   }
 
 };
@@ -278,11 +278,11 @@ void ComputeLdaTransform(
   ComputeNormalizingTransform(mat_to_normalize,
     static_cast<double>(covariance_floor), &T);
 
+  // Use between class covariance weighted if using WLDA
+  SpMatrix<double> between_covar(total_covar);
   if (lda_variation == 0) {
-    SpMatrix<double> between_covar(total_covar);
     between_covar.AddSp(-1.0, within_covar);
   } else {
-    SpMatrix<double> between_covar;
     stats.GetBetweenCovarWeighted(&between_covar);
   }
 
