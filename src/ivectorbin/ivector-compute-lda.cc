@@ -141,7 +141,7 @@ class CovarianceStats {
     within_covar.Invert();
     Matrix<double> within_covar_mat(&within_covar);
     Vector<double> spk_diff_times_covar(spk_diff);
-    spk_diff_times_covar.AddMatVec(1.0, &within_covar_mat, kTrans, &spk_diff, 0.0);
+    spk_diff_times_covar.AddMatVec(1.0, within_covar_mat, kTrans, spk_diff, 0.0);
     w = VecVec(spk_diff_times_covar, spk_diff);
     return pow(w,-n);
   }
