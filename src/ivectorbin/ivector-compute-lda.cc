@@ -64,12 +64,18 @@ class CovarianceStats {
     // calculate average ivector for speaker j
     Vector<double> spk_j_average(Dim());
     spk_j_average.AddRowSumMat(1.0 / n_j, utts_of_spk_j);
-    // calculate w_i - w_j
+    // calculate (w_i - w_j)
     Vector<double> spk_diff(Dim());
     spk_diff.AddVec(1.0, spk_i_average);
     spk_diff.AddVec(-1.0, spk_j_average);
-    // calculate the weight
+    // calculate the w(d_ij)
     double w = 1;
+    if (lda_var == 1) {
+      euclidean_distance_weight(&w, spk_diff, 4);
+    } else if (lda_var == 2){
+      mahalanobis_distance_weight(&w, spk_diff, 6);
+    }
+    // calculate 1/N w(d_ij) n_i n_j
     double weight = w * n_i * n_j / num_utt_;
     
     // calculate 1/N w(d_ij) n_i n_j (w_i - w_j)(w_i - w_j)^T and add to covar
@@ -98,6 +104,32 @@ class CovarianceStats {
   SpMatrix<double> between_covar_weighted_;
   int32 num_spk_;
   int32 num_utt_;
+
+  void euclidean_distance_weight(double *w, Vector<double> spk_diff, int32 n) {
+    // Euclidean distance weighting is defined as:
+    //    w(d_ij) = ((w_i − w_j)^T (w_i − w_j))^−n
+    // where
+    //    n:   can be selected as anything
+
+    // dot product of (w_1 - w_j)
+    w = VecVec(spk_diff, spk_diff);
+    // take dot product to power of -n
+    w = pow(w,-n);
+  }
+  void mahalanobis_distance_weight(double *w, Vector<double> spk_diff, int32 n) {
+    // Mahalanobis distance weighting is defined as:
+    //    w(d_ij) = ((w_i − wIj)^T (S_w)^-1 (w_i − w_j))^−n
+    // where
+    //    n:   can be selected as anything
+    SpMatrix<double> within_covar;
+    GetWithinCovar(&within_covar);
+    within_covar.Invert();
+    Vector<double> spk_diff_times_covar(spk_diff);
+    spk_diff_times_covar.AddMatVec(1.0, within_covar, kTrans, spk_diff, 0.0);
+    w = VecVec(spk_diff_times_covar, spk_diff);
+    w = pow(w,-n);
+  }
+
 };
 
 
