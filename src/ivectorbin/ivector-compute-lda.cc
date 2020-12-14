@@ -220,7 +220,7 @@ void ComputeLdaTransform(
     
     // set up outer iterator over the speaker list (for speaker i)
     std::map<std::string, std::vector<std::string> >::const_iterator outer_iter;
-    for (outer_iter = spk2utt.begin(); outer_iter != spk2utt.end(); ++outer_iter) {
+    for (outer_iter = spk2utt.begin(); outer_iter != std::prev(spk2utt.end()); ++outer_iter) {
       
       // grab utterances for speaker i
       const std::vector<std::string> &uttlist_i = outer_iter->second;
