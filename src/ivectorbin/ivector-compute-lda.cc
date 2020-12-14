@@ -225,9 +225,10 @@ void ComputeLdaTransform(
     KALDI_LOG << "Running WLDA variation: " << lda_variation;
     
     // set up outer iterator over the speaker list (for speaker i)
+    int32 i = 0;
     std::map<std::string, std::vector<std::string> >::const_iterator outer_iter;
     for (outer_iter = spk2utt.begin(); outer_iter != std::prev(spk2utt.end()); ++outer_iter) {
-      KALDI_LOG << "Calculating between scatter: " << outer_iter->first();
+      KALDI_LOG << "Calculating between scatter: " << i++;
 
       // grab utterances for speaker i
       const std::vector<std::string> &uttlist_i = outer_iter->second;
@@ -243,10 +244,11 @@ void ComputeLdaTransform(
       }
 
       // set up inner iterator over the speaker list (for speaker j)
+      int32 j = 0;
       std::map<std::string, std::vector<std::string> >::const_iterator inner_iter =  outer_iter;
       ++inner_iter;
       for (; inner_iter != spk2utt.end(); ++inner_iter) {
-        KALDI_LOG << "\t\t\t\t" << inner_iter->first();
+        KALDI_LOG << "\t\t\t\t" << j++;
         
         // grab utterances for speaker j
         const std::vector<std::string> &uttlist_j = inner_iter->second;
