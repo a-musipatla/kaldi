@@ -19,6 +19,8 @@ vaddir=`pwd`/mfcc
 #   1: WLDA - use Euclidean distance weighting function
 #   2: WLDA - use Mahalanobis distance weighting function
 lda_var=0
+wlda_n=4
+lda_dim=200
 
 
 # The trials file is downloaded by local/make_voxceleb1_v2.pl.
@@ -185,9 +187,8 @@ if [ $stage -le 10 ]; then
     $nnet_dir/xvectors_train/mean.vec || exit 1;
 
   # This script uses LDA to decrease the dimensionality prior to PLDA.
-  lda_dim=200
   $train_cmd $nnet_dir/xvectors_train/log/lda.log \
-    ivector-compute-lda --total-covariance-factor=0.0 --dim=$lda_dim --lda-variation=$lda_var \
+    ivector-compute-lda --total-covariance-factor=0.0 --dim=$lda_dim --lda-variation=$lda_var --wlda-n=$wlda_n \
     "ark:ivector-subtract-global-mean scp:$nnet_dir/xvectors_train/xvector.scp ark:- |" \
     ark:data/train/utt2spk $nnet_dir/xvectors_train/transform.mat || exit 1;
 
