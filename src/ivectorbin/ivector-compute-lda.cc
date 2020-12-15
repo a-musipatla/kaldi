@@ -84,9 +84,9 @@ class CovarianceStats {
     // calculate the w(d_ij)
     double w = 1;
     if (lda_var == 1) {
-      euclidean_distance_weight(w, spk_diff, wlda_n);
+      w = euclidean_distance_weight(w, spk_diff, wlda_n);
     } else if (lda_var == 2){
-      mahalanobis_distance_weight(w, spk_diff, wlda_n);
+      w = mahalanobis_distance_weight(w, spk_diff, wlda_n);
     }
     // calculate w(d_ij) n_i n_j
     double weight = w * n_i * n_j;
@@ -299,6 +299,7 @@ void ComputeLdaTransform(
   KALDI_ASSERT(!between_covar_weighted.ApproxEqual(between_covar));
   
   SpMatrix<double> between_covar_proj(dim);
+  //SpMatrix<double> between_covar_proj_weighted(dim);
   if (lda_variation == 0) {  // Standard LDA 
     between_covar_proj.AddMat2Sp(1.0, T, kNoTrans, between_covar, 0.0);
   } else {  // Weighted LDA
