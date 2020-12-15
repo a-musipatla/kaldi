@@ -489,6 +489,8 @@ int main(int argc, char *argv[]) {
     KALDI_VLOG(2) << "2-norm of transformed iVector mean is "
                   << offset.Norm(2.0);
 
+    KALDI_LOG << "lda_mat computed as " << lda_mat;
+
     WriteKaldiObject(lda_mat, lda_wxfilename, binary);
 
     KALDI_LOG << "Wrote LDA transform to "
