@@ -69,7 +69,7 @@ class CovarianceStats {
                         int32 n_j, 
                         int32 lda_var, 
                         int32 wlda_n) {
-    KALDI_LOG << "\t\t\tRunning AccWeightedStats";
+    //KALDI_LOG << "\t\t\tRunning AccWeightedStats";
 
     // calculate average ivector for speaker i
     Vector<double> spk_i_average(Dim());
@@ -127,7 +127,7 @@ class CovarianceStats {
     //    n:   can be selected as anything
 
     // dot product of (w_1 - w_j)
-    KALDI_LOG << "\t\t\tRunning Euclidean Distance Weight";
+    //KALDI_LOG << "\t\t\tRunning Euclidean Distance Weight";
     w = VecVec(spk_diff, spk_diff);
     // take dot product to power of -n
     return pow(w,-n);
@@ -139,7 +139,7 @@ class CovarianceStats {
     //    w(d_ij) = ((w_i − wIj)^T (S_w)^-1 (w_i − w_j))^−n
     // where
     //    n:   can be selected as anything
-    KALDI_LOG << "\t\t\tRunning Mahalanobis Distance Weight";
+    //KALDI_LOG << "\t\t\tRunning Mahalanobis Distance Weight";
     SpMatrix<double> within_covar;
     GetWithinCovar(&within_covar);
     within_covar.Invert();
@@ -248,7 +248,7 @@ void ComputeLdaTransform(
       std::map<std::string, std::vector<std::string> >::const_iterator inner_iter =  outer_iter;
       ++inner_iter;
       for (; inner_iter != spk2utt.end(); ++inner_iter) {
-        KALDI_LOG << "\t\t\t\t" << j++;
+        //KALDI_LOG << "\t\t\t\t" << j++;
         
         // grab utterances for speaker j
         const std::vector<std::string> &uttlist_j = inner_iter->second;
@@ -289,16 +289,22 @@ void ComputeLdaTransform(
   ComputeNormalizingTransform(mat_to_normalize,
     static_cast<double>(covariance_floor), &T);
 
-  // Use between class covariance weighted if using WLDA
   SpMatrix<double> between_covar(total_covar);
-  if (lda_variation == 0) {
-    between_covar.AddSp(-1.0, within_covar);
-  } else {
-    stats.GetBetweenCovarWeighted(&between_covar);
-  }
+  between_covar.AddSp(-1.0, within_covar);
 
+  // Use between class covariance weighted if using WLDA
+  SpMatrix<double> between_covar_weighted;
+  stats.GetBetweenCovarWeighted(&between_covar_weighted);
+
+  KALDI_ASSERT(!between_covar_weighted.ApproxEqual(between_covar));
+  
   SpMatrix<double> between_covar_proj(dim);
-  between_covar_proj.AddMat2Sp(1.0, T, kNoTrans, between_covar, 0.0);
+  if (lda_variation == 0) {  // Standard LDA 
+    between_covar_proj.AddMat2Sp(1.0, T, kNoTrans, between_covar, 0.0);
+  } else {  // Weighted LDA
+    KALDI_LOG << "Projecting weighted between class covariance";
+    between_covar_proj.AddMat2Sp(1.0, T, kNoTrans, between_covar_weighted, 0.0);
+  }
 
   Matrix<double> U(dim, dim);
   Vector<double> s(dim);
