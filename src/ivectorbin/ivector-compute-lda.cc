@@ -220,7 +220,7 @@ void ComputeLdaTransform(
   //    w(d_ij):  weight calculated by chosen method
   //    n_i/n_j:  number of utterances of speaker i/j
   //    w_i/w_j:  mean ivector of speaker i/j
-  if (lda_variation > 0) {
+  if ((lda_variation > 0) && (lda_variation < 3)) {
 
     KALDI_LOG << "Running WLDA variation: " << lda_variation;
     
@@ -300,7 +300,7 @@ void ComputeLdaTransform(
   
   SpMatrix<double> between_covar_proj(dim);
   //SpMatrix<double> between_covar_proj_weighted(dim);
-  if (lda_variation == 0) {  // Standard LDA 
+  if ((lda_variation == 0) || (lda_variation == 3)) {  // Standard LDA 
     between_covar_proj.AddMat2Sp(1.0, T, kNoTrans, between_covar, 0.0);
   } else {  // Weighted LDA
     KALDI_LOG << "Projecting weighted between class covariance";
@@ -395,11 +395,12 @@ int main(int argc, char *argv[]) {
                 "Choose LDA type: \n"
                 "   '0': LDA - no weighting, standard LDA \n"
                 "   '1': WLDA - use Euclidean distance weighting function \n"
-                "   '2': WLDA - use Mahalanobis distance weighting function \n");
+                "   '2': WLDA - use Mahalanobis distance weighting function \n"
+                "   '3': TEST CASE ONLY - Will create a garbage transform \n");
     po.Register("wlda-n", &wlda_n, "Choose n parameter for selected weighting function");
 
     // check validity of lda variant chosen  
-    if (lda_variation > 2) {
+    if (lda_variation > 3) {
       lda_variation = 0;
       KALDI_WARN << "Invalid LDA variant chosen, using standard LDA.";
     } else { // force within-class covariance if weighted LDA is chosen
@@ -488,6 +489,16 @@ int main(int argc, char *argv[]) {
 
     KALDI_VLOG(2) << "2-norm of transformed iVector mean is "
                   << offset.Norm(2.0);
+
+    // Test functionality of LDA mat
+    if (lda_variation == 3){
+      KALDI_LOG << "LDA test case, replacing LDA mat";
+      if (wlda_n == 4){
+        lda_mat.SetRandUniform();
+      } else {
+        lda_mat.SetZero();
+      }
+    } 
 
     KALDI_LOG << "lda_mat computed as " << lda_mat;
 
