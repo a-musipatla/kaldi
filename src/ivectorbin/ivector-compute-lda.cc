@@ -252,7 +252,6 @@ void ComputeLdaTransform(
     int32 i = 0;
     for (within_iter = spk2utt.begin(); within_iter != spk2utt.end(); ++within_iter) {
       KALDI_LOG << "Calculating within scatter: " << i++;
-      i++;
 
       // grab utterances for speaker
       const std::vector<std::string> &uttlist = within_iter->second;
