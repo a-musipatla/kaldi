@@ -32,6 +32,7 @@ class CovarianceStats {
   CovarianceStats(int32 dim): tot_covar_(dim),
                               between_covar_(dim),
                               between_covar_weighted_(dim),
+                              within_covar_weighted_(dim),
                               num_spk_(0),
                               num_utt_(0) { }
 
@@ -46,6 +47,10 @@ class CovarianceStats {
     *within_covar = tot_covar_;
     within_covar->AddSp(-1.0, between_covar_);
     within_covar->Scale(1.0 / num_utt_);
+  }
+  void GetWithinCovarWeighted(SpMatrix<double> *within_covar_weighted) {
+    KALDI_ASSERT(num_utt_ - num_spk_ > 0);
+    *within_covar_weighted = withincovar_weighted_;
   }
   void GetBetweenCovarWeighted(SpMatrix<double> *between_covar_weighted) {
     KALDI_ASSERT(num_utt_ - num_spk_ > 0);
@@ -102,6 +107,23 @@ class CovarianceStats {
     ostr << num_spk_ << " speakers, " << num_utt_ << " utterances. ";
     return ostr.str();
   }
+  // Update within_covar_weighted_ 
+  void AccWeightedStatsWithin(const Matrix<double> &utts_of_spk) {
+    //KALDI_LOG << "\t\t\tRunning AccWeightedStats";
+    
+    // number of utterances for this speaker
+    int32 num_utts = utts_of_spk.NumRows();
+
+    // calculate average vector (w_s) for speaker
+    Vector<double> spk_average(Dim());
+    spk_average.AddRowSumMat(1.0 / num_utts, utts_of_spk);
+
+    // calculate SUM_i=1^n_s (w_i^s - w_s)(w_i^s - w_s)^T
+    for (int32 n = 0; n < num_utts; n++) {
+      utts_of_spk.Row(n).AddVec(-1.0, spk_average);
+      within_covar_weighted_.AddVec2(1.0, utts_of_spk.Row(n));
+    }
+  }
   int32 Dim() { return tot_covar_.NumRows(); }
   // Use default constructor and assignment operator.
   void AddStats(const CovarianceStats &other) {
@@ -115,6 +137,7 @@ class CovarianceStats {
   SpMatrix<double> tot_covar_;
   SpMatrix<double> between_covar_;
   SpMatrix<double> between_covar_weighted_;
+  SpMatrix<double> within_covar_weighted_;
   int32 num_spk_;
   int32 num_utt_;
 
@@ -141,7 +164,7 @@ class CovarianceStats {
     //    n:   can be selected as anything
     //KALDI_LOG << "\t\t\tRunning Mahalanobis Distance Weight";
     SpMatrix<double> within_covar;
-    GetWithinCovar(&within_covar);
+    GetWithinCovarWeighted(&within_covar);
     within_covar.Invert();
     Matrix<double> within_covar_mat(within_covar);
     Vector<double> spk_diff_times_covar(spk_diff);
@@ -192,6 +215,7 @@ void ComputeLdaTransform(
 
   CovarianceStats stats(dim);
 
+  // Standard LDA calculations
   std::map<std::string, std::vector<std::string> >::const_iterator iter;
   for (iter = spk2utt.begin(); iter != spk2utt.end(); ++iter) {
     const std::vector<std::string> &uttlist = iter->second;
@@ -208,22 +232,53 @@ void ComputeLdaTransform(
     stats.AccStats(utts_of_this_spk);
   }
 
-  // If WLDA was selected, compute between_covar_weighted
-  //    this computation must take place after the calculation for standard LDA
-  //    as certain weight functions (ex. Mahalanobis) require the within class 
-  //    covariance to be calculated already.
-  //
-  // WLDA S_b defined as:
-  //    S_b = 1/N SUM_i=1^S-1 SUM_j=i+1^S w(d_ij) n_i n_j (w_i − w_j)(w_i − w_j)^T
-  // where:
-  //    S:        total number of speakers
-  //    w(d_ij):  weight calculated by chosen method
-  //    n_i/n_j:  number of utterances of speaker i/j
-  //    w_i/w_j:  mean ivector of speaker i/j
+  // If WLDA was selected, compute between_covar_weighted and within_covar_weighted
   if ((lda_variation > 0) && (lda_variation < 3)) {
 
     KALDI_LOG << "Running WLDA variation: " << lda_variation;
-    
+
+    // WLDA S_w defined as:
+    //    S_w = SUM_s=1^S SUM_i=1^n_s (w_i^s − w_s)(w_i^s − w_s)^T
+    // where:
+    //    S:        total number of speakers
+    //    w_s:      mean vector for speaker s
+    //    n_s:      num utterances for speaker s
+    //    w_i^s:    an utterance for speaker s
+
+    // Calculate within_covar_weighted
+    std::map<std::string, std::vector<std::string> >::const_iterator within_iter;
+    int32 i = 0;
+    for (within_iter = spk2utt.begin(); within_iter != std::spk2utt.end(); ++within_iter) {
+      KALDI_LOG << "Calculating within scatter: " << i++;
+      i++;
+
+      // grab utterances for speaker
+      const std::vector<std::string> &uttlist = outer_iter->second;
+      KALDI_ASSERT(!uttlist.empty());
+      int32 num_utt = uttlist.size(); // number of utterances
+      // utts_of_spk_i contains utterances of speaker i
+      Matrix<double> utts_of_spk(num_utt, dim);
+      for (int32 n = 0; n < num_utt; n++) {
+        std::string utt = uttlist[n];
+        KALDI_ASSERT(utt2ivector.count(utt) != 0);
+        utts_of_spk.Row(n).CopyFromVec(
+            *(utt2ivector.find(utt)->second));
+      }
+
+      stats.AccWeightedStatsWithin(utts_of_spk);
+    }
+
+    // WLDA S_b defined as:
+    //    S_b = 1/N SUM_i=1^S-1 SUM_j=i+1^S w(d_ij) n_i n_j (w_i − w_j)(w_i − w_j)^T
+    // where:
+    //    S:        total number of speakers
+    //    w(d_ij):  weight calculated by chosen method
+    //    n_i/n_j:  number of utterances of speaker i/j
+    //    w_i/w_j:  mean ivector of speaker i/j
+    //    this computation must take place after the calculation for standard LDA
+    //    as certain weight functions (ex. Mahalanobis) require the within class 
+    //    covariance to be calculated already.
+
     // set up outer iterator over the speaker list (for speaker i)
     int32 i = 0;
     std::map<std::string, std::vector<std::string> >::const_iterator outer_iter;
@@ -244,11 +299,9 @@ void ComputeLdaTransform(
       }
 
       // set up inner iterator over the speaker list (for speaker j)
-      int32 j = 0;
       std::map<std::string, std::vector<std::string> >::const_iterator inner_iter =  outer_iter;
       ++inner_iter;
       for (; inner_iter != spk2utt.end(); ++inner_iter) {
-        //KALDI_LOG << "\t\t\t\t" << j++;
         
         // grab utterances for speaker j
         const std::vector<std::string> &uttlist_j = inner_iter->second;
@@ -280,10 +333,19 @@ void ComputeLdaTransform(
   SpMatrix<double> within_covar;
   stats.GetWithinCovar(&within_covar);
 
+  // Use within covar weighted if using WLDA
+  SpMatrix<double> within_covar_weighted;
+  stats.GetWithinCovarWeighted(&within_covar_weighted);
+
 
   SpMatrix<double> mat_to_normalize(dim);
-  mat_to_normalize.AddSp(total_covariance_factor, total_covar);
-  mat_to_normalize.AddSp(1.0 - total_covariance_factor, within_covar);
+  if ((lda_variation == 0) || (lda_variation == 3)) {  // Standard LDA 
+    mat_to_normalize.AddSp(total_covariance_factor, total_covar);
+    mat_to_normalize.AddSp(1.0 - total_covariance_factor, within_covar);
+  } else {  // Weighted LDA
+    KALDI_LOG << "Projecting weighted within class covariance";
+    mat_to_normalize.AddSp(1.0, within_covar_weighted);
+  }
 
   Matrix<double> T(dim, dim);
   ComputeNormalizingTransform(mat_to_normalize,
@@ -295,11 +357,8 @@ void ComputeLdaTransform(
   // Use between class covariance weighted if using WLDA
   SpMatrix<double> between_covar_weighted;
   stats.GetBetweenCovarWeighted(&between_covar_weighted);
-
-  KALDI_ASSERT(!between_covar_weighted.ApproxEqual(between_covar));
   
   SpMatrix<double> between_covar_proj(dim);
-  //SpMatrix<double> between_covar_proj_weighted(dim);
   if ((lda_variation == 0) || (lda_variation == 3)) {  // Standard LDA 
     between_covar_proj.AddMat2Sp(1.0, T, kNoTrans, between_covar, 0.0);
   } else {  // Weighted LDA
