@@ -532,6 +532,10 @@ int main(int argc, char *argv[]) {
     Vector<BaseFloat> mean;
     if (lda_variation <= 0) {
       ComputeAndSubtractMean(utt2ivector, &mean);
+    } else {
+      int32 dim = utt2ivector.begin()->second->Dim();
+      mean.Resize(dim);
+      mean.SetZero();
     }
     KALDI_LOG << "2-norm of iVector mean is " << mean.Norm(2.0);
 
