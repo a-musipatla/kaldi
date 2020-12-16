@@ -50,7 +50,7 @@ class CovarianceStats {
   }
   void GetWithinCovarWeighted(SpMatrix<double> *within_covar_weighted) {
     KALDI_ASSERT(num_utt_ - num_spk_ > 0);
-    *within_covar_weighted = withincovar_weighted_;
+    *within_covar_weighted = within_covar_weighted_;
   }
   void GetBetweenCovarWeighted(SpMatrix<double> *between_covar_weighted) {
     KALDI_ASSERT(num_utt_ - num_spk_ > 0);
@@ -119,9 +119,11 @@ class CovarianceStats {
     spk_average.AddRowSumMat(1.0 / num_utts, utts_of_spk);
 
     // calculate SUM_i=1^n_s (w_i^s - w_s)(w_i^s - w_s)^T
+    Vector<double> utt(Dim());
     for (int32 n = 0; n < num_utts; n++) {
-      utts_of_spk.Row(n).AddVec(-1.0, spk_average);
-      within_covar_weighted_.AddVec2(1.0, utts_of_spk.Row(n));
+      utt.CopyFromVec(utts_of_spk.Row(n));
+      utt.AddVec(-1.0, spk_average);
+      within_covar_weighted_.AddVec2(1.0, utt);
     }
   }
   int32 Dim() { return tot_covar_.NumRows(); }
@@ -233,7 +235,7 @@ void ComputeLdaTransform(
   }
 
   // If WLDA was selected, compute between_covar_weighted and within_covar_weighted
-  if ((lda_variation > 0) && (lda_variation < 3)) {
+  if (lda_variation > 0) {
 
     KALDI_LOG << "Running WLDA variation: " << lda_variation;
 
@@ -248,12 +250,12 @@ void ComputeLdaTransform(
     // Calculate within_covar_weighted
     std::map<std::string, std::vector<std::string> >::const_iterator within_iter;
     int32 i = 0;
-    for (within_iter = spk2utt.begin(); within_iter != std::spk2utt.end(); ++within_iter) {
+    for (within_iter = spk2utt.begin(); within_iter != spk2utt.end(); ++within_iter) {
       KALDI_LOG << "Calculating within scatter: " << i++;
       i++;
 
       // grab utterances for speaker
-      const std::vector<std::string> &uttlist = outer_iter->second;
+      const std::vector<std::string> &uttlist = within_iter->second;
       KALDI_ASSERT(!uttlist.empty());
       int32 num_utt = uttlist.size(); // number of utterances
       // utts_of_spk_i contains utterances of speaker i
@@ -280,7 +282,7 @@ void ComputeLdaTransform(
     //    covariance to be calculated already.
 
     // set up outer iterator over the speaker list (for speaker i)
-    int32 i = 0;
+    i = 0;
     std::map<std::string, std::vector<std::string> >::const_iterator outer_iter;
     for (outer_iter = spk2utt.begin(); outer_iter != std::prev(spk2utt.end()); ++outer_iter) {
       KALDI_LOG << "Calculating between scatter: " << i++;
@@ -339,7 +341,7 @@ void ComputeLdaTransform(
 
 
   SpMatrix<double> mat_to_normalize(dim);
-  if ((lda_variation == 0) || (lda_variation == 3)) {  // Standard LDA 
+  if (lda_variation <= 0) {  // Standard LDA 
     mat_to_normalize.AddSp(total_covariance_factor, total_covar);
     mat_to_normalize.AddSp(1.0 - total_covariance_factor, within_covar);
   } else {  // Weighted LDA
@@ -359,7 +361,7 @@ void ComputeLdaTransform(
   stats.GetBetweenCovarWeighted(&between_covar_weighted);
   
   SpMatrix<double> between_covar_proj(dim);
-  if ((lda_variation == 0) || (lda_variation == 3)) {  // Standard LDA 
+  if (lda_variation <= 0) {  // Standard LDA 
     between_covar_proj.AddMat2Sp(1.0, T, kNoTrans, between_covar, 0.0);
   } else {  // Weighted LDA
     KALDI_LOG << "Projecting weighted between class covariance";
@@ -452,14 +454,14 @@ int main(int argc, char *argv[]) {
     po.Register("binary", &binary, "Write output in binary mode");
     po.Register("lda-variation", &lda_variation, 
                 "Choose LDA type: \n"
+                "   '-1': TEST CASE ONLY - Will create a garbage transform \n"
                 "   '0': LDA - no weighting, standard LDA \n"
                 "   '1': WLDA - use Euclidean distance weighting function \n"
-                "   '2': WLDA - use Mahalanobis distance weighting function \n"
-                "   '3': TEST CASE ONLY - Will create a garbage transform \n");
+                "   '2': WLDA - use Mahalanobis distance weighting function \n");
     po.Register("wlda-n", &wlda_n, "Choose n parameter for selected weighting function");
 
     // check validity of lda variant chosen  
-    if (lda_variation > 3) {
+    if (lda_variation > 2) {
       lda_variation = 0;
       KALDI_WARN << "Invalid LDA variant chosen, using standard LDA.";
     } else { // force within-class covariance if weighted LDA is chosen
@@ -529,7 +531,9 @@ int main(int argc, char *argv[]) {
     }
 
     Vector<BaseFloat> mean;
-    ComputeAndSubtractMean(utt2ivector, &mean);
+    if (lda_variation <= 0) {
+      ComputeAndSubtractMean(utt2ivector, &mean);
+    }
     KALDI_LOG << "2-norm of iVector mean is " << mean.Norm(2.0);
 
 
@@ -550,7 +554,7 @@ int main(int argc, char *argv[]) {
                   << offset.Norm(2.0);
 
     // Test functionality of LDA mat
-    if (lda_variation == 3){
+    if (lda_variation < 0){
       KALDI_LOG << "LDA test case, replacing LDA mat";
       if (wlda_n == 4){
         lda_mat.SetRandUniform();
